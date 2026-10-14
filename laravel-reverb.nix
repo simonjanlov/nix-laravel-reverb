@@ -158,11 +158,6 @@ in
             default = 8080;
           };
 
-          BROADCAST_CONNECTION = mkOption {
-            type = types.str;
-            default = "reverb";
-          };
-
           CACHE_STORE = mkOption {
             type = types.enum [
               "array"
