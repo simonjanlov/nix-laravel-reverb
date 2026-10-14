@@ -4,16 +4,6 @@
   php,
 }:
 
-# let
-#   php' = php.buildEnv {
-#     extensions = { enabled, all }: with all; enabled ++ [ redis ];
-#     extraConfig = ''
-#       memory_limit = 256M
-#     '';
-#   };
-# in
-# php'.buildComposerProject2 (finalAttrs: {
-
 php.buildComposerProject2 (finalAttrs: {
   pname = "laravel-reverb";
   version = "1.12.0";
