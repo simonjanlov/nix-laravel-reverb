@@ -1,5 +1,5 @@
 {
-  dataDir ? "/var/lib/laravel-reverb",
+  configDir ? "/run/laravel-reverb",
   fetchFromGitHub,
   php,
 }:
@@ -26,8 +26,9 @@ php.buildComposerProject2 (finalAttrs: {
   postInstall = ''
     reverb_out="$out/share/php/laravel-reverb"
 
-    ln -s ${dataDir}/.env $reverb_out/.env
-    ln -s ${dataDir}/config/reverb.php $reverb_out/config/reverb.php
+    ln -s ${configDir}/.env $reverb_out/.env
+    # ln -s ${configDir}/reverb.php $reverb_out/config/reverb.php
+    ln -s /var/lib/laravel-reverb/reverb.php $reverb_out/config/reverb.php
   '';
 
   meta = {
