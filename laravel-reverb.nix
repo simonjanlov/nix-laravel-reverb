@@ -143,6 +143,11 @@ in
 
         options = {
 
+          APP_KEY = mkOption {
+            type = with types; nullOr str;
+            default = null;
+          };
+
           REVERB_SERVER_HOST = mkOption {
             type = types.str;
             default = "127.0.0.1";
