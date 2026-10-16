@@ -45,26 +45,6 @@ in
       type = types.str;
     };
 
-    # dataDir = mkOption {
-    #   default = "/var/lib/laravel-reverb";
-    #   description = "Reverb's data directory.";
-    #   type = types.path;
-    # };
-
-    # cacheStore = mkOption {
-    #   default = "redis";
-    #   type = types.enum [
-    #     "redis"
-    #     "array"
-    #     ## TODO: Add options for connecting a regular database?
-    #     # "database"
-    #   ];
-    #   description = ''
-    #       Set cache store used by Reverb. Supported are redis and array.
-    #     '';
-
-    # };
-
     redis = {
         host = mkOption {
           type = types.str;
