@@ -95,30 +95,19 @@ in
     };
 
     settings = mkOption {
-      # example = literalExpression ''
-      #   {
-      #     imap = {
-      #       host = "imap.example.com";
-      #       user = "alice@example.com";
-      #       password = { _secret = "/run/keys/imap_password" };
-      #     };
-      #     mailbox = {
-      #       watch = true;
-      #       batch_size = 30;
-      #     };
-      #     splunk_hec = {
-      #       url = "https://splunkhec.example.com";
-      #       token = { _secret = "/run/keys/splunk_token" };
-      #       index = "email";
-      #     };
-      #   }
-      # '';
+      example = literalExpression ''
+        {
+          DB_USERNAME = "root";
+        }
+      '';
       description = ''
         Configuration parameters to set in
         {file}`.env`.
       '';
 
       type = types.submodule {
+        # TODO: Expand this section, also allow more types than
+        # string?
         freeformType = with types; attrsOf str;
 
         options = {
