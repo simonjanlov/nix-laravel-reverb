@@ -188,33 +188,21 @@ in
           port = cfg.redis.port;
         };
 
-    systemd.services.reverb-setup = mkMerge
+    systemd.services.laravel-reverb = mkMerge
       [
         {
-          description = "Preparation tasks for Laravel Reverb";
+          description = "WebSocket server Laravel Reverb";
 
           wantedBy = [ "multi-user.target" ];
           serviceConfig = {
-            Type = "oneshot";
-            RemainAfterExit = true;
+            Type = "exec";
             User = cfg.user;
 
-            # TEMP (for manual install of reverb.php)
-            StateDirectory = "laravel-reverb";
-
-            # We don't actually need persistent storage for laravel
-            # reverb but we need the config files to persist over
-            # service restarts
             RuntimeDirectory = "laravel-reverb";
-            RuntimeDirectoryPreserve = "yes";
-
+            CacheDirectory = "laravel-reverb/bootstrap/cache";
             WorkingDirectory = "${laravel-reverb}/share/php/laravel-reverb";
-          };
-          # path = [
-          #   pkgs.replace-secret
-          #   artisan
-          # ];
-          script =
+
+            ExecStartPre =
             let
               # isSecret = v: isAttrs v && v ? _secret && (isString v._secret || builtins.isPath v._secret);
               reverbEnvVars = generators.toKeyValue {
@@ -264,7 +252,7 @@ in
               )) cfg.settings;
               reverbEnv = pkgs.writeText "reverb.env" (reverbEnvVars filteredConfig);
             in
-              ''
+              pkgs.writeShellScript "reverb-setup" ''
                 # error handling
                 set -euo pipefail
 
@@ -274,6 +262,13 @@ in
                 # create .env file
                 install -T -m 0600 -o ${cfg.user} ${reverbEnv} "/run/laravel-reverb/.env"
               '';
+
+            ExecStart = ''
+              ${getExe php'} artisan reverb:start
+            '';
+          };
+
+
         }
         (mkIf redisEnabled
           {
