@@ -144,6 +144,11 @@ in
             type = types.port;
             default = cfg.redis.port;
           };
+
+          LOG_CHANNEL = mkOption {
+            type = types.str;
+            default = "syslog";
+          };
         };
       };
     };
