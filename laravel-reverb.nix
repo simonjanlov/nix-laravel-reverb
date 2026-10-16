@@ -21,6 +21,7 @@ let
   cfg = config.services.laravel-reverb;
   opt = options.services.laravel-reverb;
   pkgs-master = import /etc/nixos/modules/nixpkgs-master { config = {}; overlays = []; };
+  # We need the phpRedis extension even if redis is not locally served?
   redisEnabled = cfg.settings.CACHE_STORE == "redis";
   php' = if redisEnabled then
     pkgs-master.php.buildEnv {
@@ -174,10 +175,11 @@ in
     # redis server on the host
     services.redis.servers.reverb =
       mkIf
-        (elem cfg.redis.host [
-          "localhost"
-          "127.0.0.1"
-        ])
+        (cfg.settings.CACHE_STORE == "redis" &&
+         elem cfg.redis.host [
+           "localhost"
+           "127.0.0.1"
+         ])
         {
           enable = true;
           bind = cfg.redis.host;
