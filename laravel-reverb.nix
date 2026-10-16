@@ -289,6 +289,7 @@ in
         reverb = {
           group = "reverb";
           isSystemUser = true;
+          extraGroups = [ "redis-reverb" ];
         };
       };
       groups = mkIf (cfg.group == "reverb") {
