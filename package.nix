@@ -1,5 +1,7 @@
 {
-  configDir ? "/run/laravel-reverb",
+  runtimeDir ? "/run/laravel-reverb",
+  dataDir ? "/var/lib/laravel-reverb",
+  cacheDir ? "/var/cache/laravel-reverb",
   fetchFromGitHub,
   php,
 }:
@@ -26,9 +28,14 @@ php.buildComposerProject2 (finalAttrs: {
   postInstall = ''
     reverb_out="$out/share/php/laravel-reverb"
 
-    ln -s ${configDir}/.env $reverb_out/.env
-    # ln -s ${configDir}/reverb.php $reverb_out/config/reverb.php
-    ln -s /var/lib/laravel-reverb/reverb.php $reverb_out/config/reverb.php
+    rm -R $reverb_out/storage $reverb_out/bootstrap/cache
+
+    ln -s ${runtimeDir}/.env $reverb_out/.env
+    # ln -s ${runtimeDir}/reverb.php $reverb_out/config/reverb.php
+    # Temporary, while the below file is copied in manually
+    ln -s ${dataDir}/reverb.php $reverb_out/config/reverb.php
+    ln -s ${cacheDir}/bootstrap/cache $reverb_out/bootstrap/cache
+
   '';
 
   meta = {
