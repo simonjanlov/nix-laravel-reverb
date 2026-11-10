@@ -1,7 +1,4 @@
 {
-  runtimeDir ? "/run/laravel-reverb",
-  dataDir ? "/var/lib/laravel-reverb",
-  cacheDir ? "/var/cache/laravel-reverb",
   fetchFromGitHub,
   php,
 }:
