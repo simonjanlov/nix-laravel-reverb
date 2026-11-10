@@ -27,11 +27,8 @@ php.buildComposerProject2 (finalAttrs: {
 
     rm -R $reverb_out/storage $reverb_out/bootstrap/cache
 
-    ln -s ${runtimeDir}/.env $reverb_out/.env
-    # ln -s ${runtimeDir}/reverb.php $reverb_out/config/reverb.php
-    # Temporary, while the below file is copied in manually
-    ln -s ${dataDir}/reverb.php $reverb_out/config/reverb.php
-    ln -s ${cacheDir}/bootstrap/cache $reverb_out/bootstrap/cache
+    ln -s /run/laravel-reverb/.env $reverb_out/.env
+    ln -s /var/cache/laravel-reverb/bootstrap/cache $reverb_out/bootstrap/cache
 
   '';
 
