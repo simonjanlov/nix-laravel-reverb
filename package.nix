@@ -27,6 +27,7 @@ php.buildComposerProject2 (finalAttrs: {
 
     rm -R $reverb_out/storage $reverb_out/bootstrap/cache
 
+    cp ${./reverbConfigImporter.php} $reverb_out/config/reverb.php
     ln -s /run/laravel-reverb/.env $reverb_out/.env
     ln -s /var/cache/laravel-reverb/bootstrap/cache $reverb_out/bootstrap/cache
 
