@@ -1,101 +1,59 @@
-# Handle .env, reverb.php
-# Set up redis
-# Define a systemd unit that runs
-# php artisan reverb:start and handles local directories
-
 # Set up nginx? The connection to the reverb server needs to be
 # configured app-side? I.e. we don't provide any additional location
 # (/app) to the virtualHost from here
 
-
 {
   config,
-  options,
   lib,
   pkgs,
+  utils,
   ...
 }:
 with lib;
+with types;
 
 let
   cfg = config.services.laravel-reverb;
-  opt = options.services.laravel-reverb;
   pkgs-master = import /etc/nixos/modules/nixpkgs-master { config = {}; overlays = []; };
   # We need the phpRedis extension even if redis is not locally served?
-  redisEnabled = cfg.settings.CACHE_STORE == "redis";
+  redisEnabled = cfg.envConfig.CACHE_STORE == "redis";
   php' = if redisEnabled then
     pkgs-master.php.buildEnv {
       extensions = { enabled, all }: with all; enabled ++ [ redis ];
     }
          else pkgs-master.php;
   laravel-reverb = (pkgs-master.callPackage ./package.nix { }).override { php = php'; };
+  format = pkgs.formats.json { };
 in
 {
   options.services.laravel-reverb = {
     enable = mkEnableOption "Reverb: A WebSocket server built with PHP & Laravel";
 
     user = mkOption {
+      type = str;
       default = "reverb";
       description = "User reverb runs as.";
-      type = types.str;
     };
 
     group = mkOption {
+      type = str;
       default = "reverb";
       description = "Group reverb runs as.";
-      type = types.str;
     };
 
-    redis = {
-        host = mkOption {
-          type = types.str;
-          default = "localhost";
-          description = ''
-            Redis server hostname.
-          '';
-        };
-
-        port  = mkOption {
-          type = types.int;
-          # Should probably always be 0? If we're not setting redis
-          # host to localhost we won't be hosting the redis server at
-          # all (?)
-          default = if (cfg.redis.host == "localhost" || cfg.redis.host == "127.0.0.1") then 0 else 6379;
-          description = ''
-            Redis server port.
-          '';
-        };
-
-        passwordFile = mkOption {
-          type = with types; nullOr path;
-          default = null;
-          description = ''
-            File containing the Redis password.
-
-            This should be a string, not a nix path, since nix paths are
-            copied into the world-readable nix store.
-          '';
-        };
-
-        dbNumber = mkOption {
-          type = types.int;
-          default = 0;
-          description = ''
-            Redis database number.
-          '';
-        };
-
-        useSSL = mkOption {
-          type = types.bool;
-          default = cfg.redis.host != "localhost";
-          defaultText = literalExpression ''config.${opt.redis.host} != "localhost"'';
-          description = ''
-            Connect to Redis with SSL.
-          '';
-        };
+    hostName = mkOption {
+      type = str;
+      description = "Hostname where the instance is reachable.";
     };
 
-    settings = mkOption {
+    provisionNginx = mkOption {
+      type = bool;
+      default = true;
+      example = false;
+      description = "Whether to use Nginx as the reverse proxy.";
+    };
+
+    envConfig = mkOption {
       example = literalExpression ''
         {
           DB_USERNAME = "root";
@@ -106,30 +64,20 @@ in
         {file}`.env`.
       '';
 
-      type = types.submodule {
+      type = submodule {
         # TODO: Expand this section, also allow more types than
         # string?
-        freeformType = with types; attrsOf str;
+        freeformType = attrsOf str;
 
         options = {
 
-          APP_KEY = mkOption {
-            type = with types; nullOr str;
-            default = null;
-          };
-
-          REVERB_SERVER_HOST = mkOption {
-            type = types.str;
-            default = "127.0.0.1";
-          };
-
-          REVERB_SERVER_PORT = mkOption {
-            type = types.port;
-            default = 8080;
-          };
+          # APP_KEY = mkOption {
+          #   type = with types; nullOr str;
+          #   default = null;
+          # };
 
           CACHE_STORE = mkOption {
-            type = types.enum [
+            type = enum [
               "array"
               "redis"
             ];
@@ -137,18 +85,213 @@ in
           };
 
           REDIS_HOST = mkOption {
-            type = types.str;
+            type = str;
             default = "unix:///run/redis-reverb/redis.sock";
           };
 
           REDIS_PORT = mkOption {
-            type = types.port;
-            default = cfg.redis.port;
+            type = port;
+            # default = cfg.redis.port;
+            default = 0;
           };
 
           LOG_CHANNEL = mkOption {
-            type = types.str;
+            type = str;
             default = "syslog";
+          };
+        };
+      };
+    };
+
+    reverbConfig =
+      let
+        secret = submodule {
+          options = {
+            _secret = mkOption {
+              type = externalPath;
+            };
+            quote = mkOption {
+              type = bool;
+              default = true;
+            };
+          };
+        };
+      in
+      mkOption {
+      example = literalExpression ''
+        {
+          servers.reverb = {
+            host = "127.0.0.1";
+          };
+          apps = [
+            {
+              app_id = "my-app-id";
+              key = "my-app-key";
+              secret = { _secret = "/path/to/secret"; };
+            };
+          ];
+        }
+      '';
+      description = ''
+        Configuration parameters to be set in accordance
+        with {file}`config/reverb.php`.
+      '';
+
+      type = submodule {
+        freeformType = format.type;
+
+        options = {
+          default = mkOption {
+            default = "reverb";
+            internal = true;
+            readOnly = true;
+          };
+
+          servers.reverb = {
+            host = mkOption {
+              type = str;
+              default = "127.0.0.1";
+              example = "0.0.0.0";
+              description = ''
+                The IP address the server should bind to.
+              '';
+            };
+            port = mkOption {
+              type = port;
+              default = 8080;
+              description = ''
+                The port the server should listen on.
+              '';
+            };
+            path = mkOption {
+              type = str;
+              default = "";
+              example = "/reverb";
+              description = ''
+                The path the server should prefix to all routes.
+              '';
+            };
+            hostname = mkOption {
+              type = str;
+              default = cfg.hostName;
+              example = "reverb.example.com";
+              description = ''
+                The hostname the server is accessible from.
+              '';
+            };
+            max_request_size = mkOption {
+              type = int;
+              default = 10000;
+            };
+            scaling = {
+              enabled = mkOption {
+                type = bool;
+                default = false;
+              };
+              channel = mkOption {
+                default = "reverb";
+              };
+
+   #             'server' => [
+   #                 'url' => env('REDIS_URL'),
+   #                 'host' => env('REDIS_HOST', '127.0.0.1'),
+   #                 'port' => env('REDIS_PORT', '6379'),
+   #                 'username' => env('REDIS_USERNAME'),
+   #                 'password' => env('REDIS_PASSWORD'),
+   #                 'database' => env('REDIS_DB', '0'),
+   #                 'timeout' => env('REDIS_TIMEOUT', 60),
+   #             ],
+            };
+            pulse_ingest_interval = mkOption {
+              type = int;
+              default = 15;
+            };
+            telescope_ingest_interval = mkOption {
+              type = int;
+              default = 15;
+            };
+          };
+          apps = {
+            # Is this also something we should set and hide?
+            provider = mkOption {
+              type = str;
+              default = "config";
+            };
+            apps = mkOption {
+
+              type = nonEmptyListOf (submodule {
+
+                freeformType = attrs;
+
+                options = {
+                  key = mkOption {
+                    type = str;
+                  };
+                  app_id = mkOption {
+                    type = str;
+                  };
+                  secret = mkOption {
+                    type = coercedTo externalPath (x: { _secret = toString x; }) secret;
+                    description = ''
+                      Always handled as a secret whether the value is
+                      wrapped in a `{ _secret = ...; }`
+                      attrset or not.
+                    '';
+                  };
+
+                  # options = {
+                  #   host = mkOption {
+                  #     type = str;
+                  #     example = "wss.laravel.org";
+                  #   };
+                  #   port = mkOption {
+                  #     type = port;
+                  #     default = 443;
+                  #   };
+                  #   scheme = mkOption {
+                  #     type = enum[
+                  #       "http"
+                  #       "https"
+                  #     ];
+                  #     default = "https";
+                  #   };
+                  #   useTLS = mkOption {
+                  #     type = bool;
+                  #     default = true;
+                  #   };
+                  # };
+                  allowed_origins = mkOption {
+                    type = listOf str;
+                    default = [ "*" ];
+                  };
+                  ping_interval = mkOption {
+                    type = int;
+                    default = 60;
+                  };
+                  activity_timeout = mkOption {
+                    type = int;
+                    default = 30;
+                  };
+                  # max_connections =
+                  max_message_size = mkOption {
+                    type = int;
+                    default = 10000;
+                  };
+                  accept_client_events_from = mkOption {
+                    type = str;
+                    default = "members";
+                  };
+                  #               'rate_limiting' => [
+                  #                   'enabled' => env('REVERB_APP_RATE_LIMITING_ENABLED', false),
+                  #                   'max_attempts' => env('REVERB_APP_RATE_LIMIT_MAX_ATTEMPTS', 60),
+                  #                   'decay_seconds' => env('REVERB_APP_RATE_LIMIT_DECAY_SECONDS', 60),
+                  #                   'terminate_on_limit' => env('REVERB_APP_RATE_LIMIT_TERMINATE', false),
+                  #               ],
+
+
+                };
+              });
+            };
           };
         };
       };
@@ -157,36 +300,22 @@ in
 
   config = mkIf cfg.enable {
 
-    ## TEMP
-    # Get anything out of laravel-reverb, to trigger the build
-    environment.etc = {
-      # Creates /etc/test
-      test = {
-        text = ''
-          whatever you want to put in the file goes here.
-          ${laravel-reverb}
-        '';
-        mode = "0440";
-      };
-    };
-
-
-    # If the redis host given is localhost/127.0.0.1, we enable the
-    # redis server on the host
-    services.redis.servers.reverb =
-      mkIf
-        (cfg.settings.CACHE_STORE == "redis" &&
-         elem cfg.redis.host [
-           "localhost"
-           "127.0.0.1"
-         ])
-        {
-          enable = true;
-          bind = cfg.redis.host;
-          # Port should probably be 0 (default) so that we can use the unix
-          # socket if on localhost
-          port = cfg.redis.port;
-        };
+    # # If the redis host given is localhost/127.0.0.1, we enable the
+    # # redis server on the host
+    # services.redis.servers.reverb =
+    #   mkIf
+    #     (cfg.settings.CACHE_STORE == "redis" &&
+    #      elem cfg.redis.host [
+    #        "localhost"
+    #        "127.0.0.1"
+    #      ])
+    #     {
+    #       enable = true;
+    #       bind = cfg.redis.host;
+    #       # Port should probably be 0 (default) so that we can use the unix
+    #       # socket if on localhost
+    #       port = cfg.redis.port;
+    #     };
 
     systemd.services.laravel-reverb = mkMerge
       [
@@ -249,8 +378,14 @@ in
                   { }
                   null
                 ]
-              )) cfg.settings;
-              reverbEnv = pkgs.writeText "reverb.env" (reverbEnvVars filteredConfig);
+              )) cfg.envConfig;
+              reverbEnvFile = pkgs.writeText "reverb.env" (reverbEnvVars filteredConfig);
+
+              # reverbConfigFile = format.generate "reverbConfig.json" cfg.reverbConfig;
+
+              secretsReplacement = utils.genJqSecretsReplacement {
+                # loadCredential = true;
+              } cfg.reverbConfig "/run/laravel-reverb/reverbConfig.json";
             in
               pkgs.writeShellScript "reverb-setup" ''
                 # error handling
@@ -260,7 +395,8 @@ in
                 umask 077
 
                 # create .env file
-                install -T -m 0600 -o ${cfg.user} ${reverbEnv} "/run/laravel-reverb/.env"
+                install -T -m 0600 -o ${cfg.user} ${reverbEnvFile} "/run/laravel-reverb/.env"
+                ${secretsReplacement.script}
               '';
 
             ExecStart = ''
@@ -278,7 +414,6 @@ in
         )
       ];
 
-    # If you change the user, you're on your own
     users = {
       users = mkIf (cfg.user == "reverb") {
         reverb = {
@@ -289,6 +424,18 @@ in
       };
       groups = mkIf (cfg.group == "reverb") {
         reverb = { };
+      };
+    };
+
+    services.nginx = mkIf cfg.provisionNginx {
+      enable = true;
+      recommendedProxySettings = mkDefault true;
+
+      virtualHosts.${cfg.hostName} = {
+        locations."${cfg.reverbConfig.servers.reverb.path}/app" = {
+          proxyWebsockets = true;
+          proxyPass = "http://${cfg.reverbConfig.servers.reverb.host}:${toString cfg.reverbConfig.servers.reverb.port}";
+        };
       };
     };
   };
